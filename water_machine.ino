@@ -1,63 +1,75 @@
+#include <SPIFFS.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <ArduinoJson.h>
+#include <FS.h>
+//#include <BluetoothSerial.h>
 #include <WiFi.h>
+#include "water_class.h"
 #include <WiFiClient.h>
 
 
-//巴法云服务器地址默认即可
-#define TCP_SERVER_ADDR "bemfa.com"
-
-///****************需要修改的地方*****************///
-
-//服务器端口//TCP创客云端口8344//TCP设备云端口8340
-#define TCP_SERVER_PORT "8344"
-//WIFI名称，区分大小写，不要写错
-#define DEFAULT_STASSID  "long"
-//WIFI密码
-#define DEFAULT_STAPSW   "yy201011"
+//服务器地址
+#define TCP_SERVER_ADDR "192.168.31.176"
+//服务器端口号
+#define TCP_SERVER_PORT "1024"
 //用户私钥，可在控制台获取,修改为自己的UID
 #define UID  "90895d3545b31d9fed8e574329798f99"
 //主题名字，可在控制台新建
 #define TOPIC  "esp32"
-//单片机LED引脚值
-const int LED_Pin = 27;
-
-///*********************************************///
-
-//led 控制函数
-void turnOnLed();
-void turnOffLed();
-
-
 //最大字节数
 #define MAX_PACKETSIZE 512
 //设置心跳值30s
 #define KEEPALIVEATIME 30*1000
-
-
-
+//定义可连接的客户端数目最大值
+#define MAX_SRV_CLIENTS 2
 
 //tcp客户端相关初始化，默认即可
 WiFiClient TCPclient;
 String TcpClient_Buff = "";
 unsigned int TcpClient_BuffIndex = 0;
-unsigned long TcpClient_preTick = 0;
+unsigned long TcpClient_preTick = 0;//客户端最后一次和服务器通讯的时间
 unsigned long preHeartTick = 0;//心跳
 unsigned long preTCPStartTick = 0;//连接
-bool preTCPConnected = false;
+bool preTCPConnected = false;//和服务器的连接状态
 
+void setup()
+{
+    Serial.begin(115200);
+    Serial.println(getCRC16("898602b103170011718401002801000000640032003200320010006403E803E807D007D0138803E803E807D007D0138810AABBCCDD"));
 
+    //SerialBT.begin("water");
+    //初始化闪存系统
+    Serial.print("正在打开闪存系统...");
+    while ( !SPIFFS.begin(true) )
+    {
+        Serial.print("...");
+        delay(1000);
+    }
+    Serial.println("OK!");
+    if ( SPIFFS.exists("/wifiData") )
+    {
+        Serial.println("存在wifi信息，现在开始尝试连接wifi");
+        File dataFile = SPIFFS.open("/wifiData" , "r");
+        long dataSize = dataFile.size();
+        String fsData;
+        for ( int i = 0; i < dataSize; i++ )
+        {
+            fsData += (char) dataFile.read();
+        }
+        dataFile.close();
+        if ( connWifi(fsData) )
+        {
+            //如果wifi连接成功，开始连接服务器
+            Serial.println(getMac());
+        }
+    } else
+    {
+        disposeErrData(WIFI_INFO_NOT_FOUND);
+        configWifi();
+    }
 
-//相关函数初始化
-//连接WIFI
-void doWiFiTick();
-void startSTA();
-
-//TCP初始化连接
-void doTCPClientTick();
-void startTCPClient();
-void sendtoTCPServer(String p);
-
-
-
+}
 
 
 /*
@@ -124,22 +136,24 @@ void doTCPClientTick()
             Serial.println("TCP Client disconnected.");
             TCPclient.stop();
         } else if ( millis() - preTCPStartTick > 1 * 1000 )//重新连接
+        {
             startTCPClient();
+        }
+
     } else
     {
         if ( TCPclient.available() )
         {//收数据
-            char c = TCPclient.read();
-            TcpClient_Buff += c;
-            TcpClient_BuffIndex++;
-            TcpClient_preTick = millis();
-
-            if ( TcpClient_BuffIndex >= MAX_PACKETSIZE - 1 )
+            while ( TCPclient.available() )
             {
-                TcpClient_BuffIndex = MAX_PACKETSIZE - 2;
-                TcpClient_preTick = TcpClient_preTick - 200;
+                TcpClient_Buff += (char) TCPclient.read();
             }
-            preHeartTick = millis();
+            if ( TcpClient_Buff.length() > 0 )
+            {
+                processServerDeliveryInformation(TcpClient_Buff);
+
+            }
+            TcpClient_Buff = "";
         }
         if ( millis() - preHeartTick >= KEEPALIVEATIME )
         {//保持心跳
@@ -148,101 +162,9 @@ void doTCPClientTick()
             sendtoTCPServer("cmd=0&msg=keep\r\n");
         }
     }
-    if ( ( TcpClient_Buff.length() >= 1 ) && ( millis() - TcpClient_preTick >= 200 ) )
-    {//data ready
-        TCPclient.flush();
-        Serial.println("Buff");
-        Serial.println(TcpClient_Buff);
-        if ( ( TcpClient_Buff.indexOf("&msg=on") > 0 ) )
-        {
-            turnOnLed();
-        } else if ( ( TcpClient_Buff.indexOf("&msg=off") > 0 ) )
-        {
-            turnOffLed();
-        }
-        TcpClient_Buff = "";
-        TcpClient_BuffIndex = 0;
-    }
 }
 
-void startSTA()
-{
-    WiFi.disconnect();
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(DEFAULT_STASSID , DEFAULT_STAPSW);
-
-}
-
-
-
-/**************************************************************************
-                                 WIFI
-***************************************************************************/
-/*
-  WiFiTick
-  检查是否需要初始化WiFi
-  检查WiFi是否连接上，若连接成功启动TCP Client
-  控制指示灯
-*/
-void doWiFiTick()
-{
-    static bool startSTAFlag = false;
-    static bool taskStarted = false;
-    static uint32_t lastWiFiCheckTick = 0;
-
-    if ( !startSTAFlag )
-    {
-        startSTAFlag = true;
-        startSTA();
-        Serial.printf("Heap size:%d\r\n" , ESP.getFreeHeap());
-    }
-
-    //未连接1s重连
-    if ( WiFi.status() != WL_CONNECTED )
-    {
-        if ( millis() - lastWiFiCheckTick > 1000 )
-        {
-            lastWiFiCheckTick = millis();
-        }
-    }
-    //连接成功建立
-    else
-    {
-        if ( taskStarted == false )
-        {
-            taskStarted = true;
-            Serial.print("\r\nGet IP Address: ");
-            Serial.println(WiFi.localIP());
-            startTCPClient();
-        }
-    }
-}
-//打开灯泡
-void turnOnLed()
-{
-    Serial.println("Turn ON");
-    digitalWrite(LED_Pin , LOW);
-}
-//关闭灯泡
-void turnOffLed()
-{
-    Serial.println("Turn OFF");
-    digitalWrite(LED_Pin , HIGH);
-}
-
-
-// 初始化，相当于main 函数
-void setup()
-{
-    Serial.begin(115200);
-    Serial.println(ESP.getSketchMD5());
-    pinMode(LED_Pin , OUTPUT);
-    digitalWrite(LED_Pin , HIGH);
-}
-
-//循环
 void loop()
 {
-    doWiFiTick();
     doTCPClientTick();
 }

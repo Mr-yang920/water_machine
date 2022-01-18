@@ -80,4 +80,4 @@ struct calculateDay differenceDay(String day_1 , String day_2);//计算两个日
 bool sendHeartbeat();//发送心跳包
 uint16_t CRC16_Modbus(uint8_t* buf , uint16_t len);//获取数据CRC16值（原生算法）
 uint16_t getCRC16(String data);//获取数据CRC16值
-void processServerDeliveryInformation(String order);//解析服务器发送的命令
+void processServerDeliveryInformation(String order);//解析服务器发送的命令 

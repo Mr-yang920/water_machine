@@ -309,7 +309,7 @@ uint16_t getCRC16(String data)
 bool sendHeartbeat()
 {
 
-}
+} 
 
 void processServerDeliveryInformation(String order)
 {
