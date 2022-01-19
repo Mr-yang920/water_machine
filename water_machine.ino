@@ -1,4 +1,4 @@
-#include <SPIFFS.h>
+ï»¿#include <SPIFFS.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <ArduinoJson.h>
@@ -9,162 +9,262 @@
 #include <WiFiClient.h>
 
 
-//·şÎñÆ÷µØÖ·
+//æœåŠ¡å™¨åœ°å€
 #define TCP_SERVER_ADDR "192.168.31.176"
-//·şÎñÆ÷¶Ë¿ÚºÅ
+//æœåŠ¡å™¨ç«¯å£å·
 #define TCP_SERVER_PORT "1024"
-//ÓÃ»§Ë½Ô¿£¬¿ÉÔÚ¿ØÖÆÌ¨»ñÈ¡,ĞŞ¸ÄÎª×Ô¼ºµÄUID
-#define UID  "90895d3545b31d9fed8e574329798f99"
-//Ö÷ÌâÃû×Ö£¬¿ÉÔÚ¿ØÖÆÌ¨ĞÂ½¨
-#define TOPIC  "esp32"
-//×î´ó×Ö½ÚÊı
+//æœ€å¤§å­—èŠ‚æ•°
 #define MAX_PACKETSIZE 512
-//ÉèÖÃĞÄÌøÖµ30s
+//è®¾ç½®å¿ƒè·³å€¼30s
 #define KEEPALIVEATIME 30*1000
-//¶¨Òå¿ÉÁ¬½ÓµÄ¿Í»§¶ËÊıÄ¿×î´óÖµ
+//å®šä¹‰å¯è¿æ¥çš„å®¢æˆ·ç«¯æ•°ç›®æœ€å¤§å€¼
 #define MAX_SRV_CLIENTS 2
 
-//tcp¿Í»§¶ËÏà¹Ø³õÊ¼»¯£¬Ä¬ÈÏ¼´¿É
+//tcpå®¢æˆ·ç«¯ç›¸å…³åˆå§‹åŒ–ï¼Œé»˜è®¤å³å¯
 WiFiClient TCPclient;
 String TcpClient_Buff = "";
 unsigned int TcpClient_BuffIndex = 0;
-unsigned long TcpClient_preTick = 0;//¿Í»§¶Ë×îºóÒ»´ÎºÍ·şÎñÆ÷Í¨Ñ¶µÄÊ±¼ä
-unsigned long preHeartTick = 0;//ĞÄÌø
-unsigned long preTCPStartTick = 0;//Á¬½Ó
-bool preTCPConnected = false;//ºÍ·şÎñÆ÷µÄÁ¬½Ó×´Ì¬
+unsigned long TcpClient_preTick = 0;//å®¢æˆ·ç«¯æœ€åä¸€æ¬¡å’ŒæœåŠ¡å™¨é€šè®¯çš„æ—¶é—´
+unsigned long preHeartTick = 0;//å¿ƒè·³
+unsigned long preTCPStartTick = 0;//è¿æ¥
+bool preTCPConnected = false;//å’ŒæœåŠ¡å™¨çš„è¿æ¥çŠ¶æ€
+heartbeatConfig mState;
 
 void setup()
 {
-    Serial.begin(115200);
-    Serial.println(getCRC16("898602b103170011718401002801000000640032003200320010006403E803E807D007D0138803E803E807D007D0138810AABBCCDD"));
+	
+	/*pinMode(PIN , INPUT_PULLDOWN);*/
+	Serial.begin(115200);
+	/*Serial.println(getCRC16("0011823372515831040001002801000000640032003200320010006403E803E807D007D0138803E803E807D007D0138810AABBCCDD"));
+	Serial.println(getCRC16("0011823372515831040002000B0003E803E807D007D01388"));
+	Serial.println(getCRC16("0011823372515831040007000100"));*/
+	//Serial.println(decToHex(false));
+	//SerialBT.begin("water");
+	sendEquipmentStatus(STANDBY);
+	sendEquipmentStatus(DEACTIVATE);
+	sendEquipmentStatus(ARREARAGE);
+	sendEquipmentStatus(PROPERWORK);
+	sendEquipmentStatus(PROPERWORK,999);
+	//åˆå§‹åŒ–é—ªå­˜ç³»ç»Ÿ
+	Serial.print("æ­£åœ¨æ‰“å¼€é—ªå­˜ç³»ç»Ÿ...");
+	while ( !SPIFFS.begin(true) )
+	{
+		Serial.print("...");
+		delay(1000);
+	}
+	Serial.println("OK!"); 
+	if ( SPIFFS.exists("/setMealData") )
+	{
+		Serial.println("å­˜åœ¨é…ç½®æ–‡ä»¶");
+		File dataFile = SPIFFS.open("/setMealData" , "r");
+		long dataSize = dataFile.size();
+		String fsData;
+		for ( int i = 0; i < dataSize; i++ )
+		{
+			fsData += (char) dataFile.read();
+		}
+		dataFile.close();
+		// Stream& input;
 
-    //SerialBT.begin("water");
-    //³õÊ¼»¯ÉÁ´æÏµÍ³
-    Serial.print("ÕıÔÚ´ò¿ªÉÁ´æÏµÍ³...");
-    while ( !SPIFFS.begin(true) )
-    {
-        Serial.print("...");
-        delay(1000);
-    }
-    Serial.println("OK!");
-    if ( SPIFFS.exists("/wifiData") )
-    {
-        Serial.println("´æÔÚwifiĞÅÏ¢£¬ÏÖÔÚ¿ªÊ¼³¢ÊÔÁ¬½Ówifi");
-        File dataFile = SPIFFS.open("/wifiData" , "r");
-        long dataSize = dataFile.size();
-        String fsData;
-        for ( int i = 0; i < dataSize; i++ )
-        {
-            fsData += (char) dataFile.read();
-        }
-        dataFile.close();
-        if ( connWifi(fsData) )
-        {
-            //Èç¹ûwifiÁ¬½Ó³É¹¦£¬¿ªÊ¼Á¬½Ó·şÎñÆ÷
-            Serial.println(getMac());
-        }
-    } else
-    {
-        disposeErrData(WIFI_INFO_NOT_FOUND);
-        configWifi();
-    }
+		StaticJsonDocument<192> doc;
 
+		DeserializationError error = deserializeJson(doc , fsData);
+		if ( error )
+		{
+			Serial.print("deserializeJson() failed: ");
+			Serial.println(error.c_str());
+			disposeErrData(JSON_PROCESSOR_ERR);
+			return;
+		}
+		mState.workMode = doc["workMode"]; // 0
+		if ( (bool)doc["workMode"] )
+		{
+			if ( (int)doc["balance"]>0 )
+			{
+				mState.mState = PROPERWORK;
+			} else
+			{
+				mState.mState = ARREARAGE;
+			}
+		} else
+		{
+			if ( (int) doc["balance"] > 0 )
+			{
+				mState.mState = PROPERWORK;
+			} else
+			{
+				mState.mState = ARREARAGE;
+			}
+		}
+		JsonArray LX_MAX = doc["LX_MAX"];
+		for ( size_t i = 0; i < 5; i++ )
+		{
+			mState.LX_MAX[i] = LX_MAX[i];
+		}
+		if ( (bool) doc["workMode"] )
+		{
+			//æ—¶é•¿æ¨¡å¼
+			mState.Surplus_Days = doc["balance"]; // 1
+		} else
+		{
+			//æµé‡æ¨¡å¼
+			mState.Surplus_Flow = doc["balance"]; // 0
+		}
+	} else
+	{
+		Serial.println("ä¸å­˜åœ¨é…ç½®æ–‡ä»¶");
+		mState.mState = DEACTIVATE;//å¾…æ¿€æ´»
+	}
+	if ( SPIFFS.exists("/wifiData") )
+	{
+		Serial.println("å­˜åœ¨wifiä¿¡æ¯ï¼Œç°åœ¨å¼€å§‹å°è¯•è¿æ¥wifi");
+		File dataFile = SPIFFS.open("/wifiData" , "r");
+		long dataSize = dataFile.size();
+		String fsData;
+		for ( int i = 0; i < dataSize; i++ )
+		{
+			fsData += (char) dataFile.read();
+		}
+		dataFile.close();
+		if ( connWifi(fsData) )
+		{
+			//å¦‚æœwifiè¿æ¥æˆåŠŸï¼Œå¼€å§‹è¿æ¥æœåŠ¡å™¨
+			Serial.println(getMac());
+		}
+	} else
+	{
+		disposeErrData(WIFI_INFO_NOT_FOUND);
+		configWifi();
+	}
 }
 
 
 /*
-  *·¢ËÍÊı¾İµ½TCP·şÎñÆ÷
+  *å‘é€æ•°æ®åˆ°TCPæœåŠ¡å™¨
  */
 void sendtoTCPServer(String p)
 {
 
-    if ( !TCPclient.connected() )
-    {
-        Serial.println("Client is not readly");
-        return;
-    }
-    TCPclient.print(p);
-    Serial.println("[Send to TCPServer]:String");
-    Serial.println(p);
+	if ( !TCPclient.connected() )
+	{
+		Serial.println("Client is not readly");
+		return;
+	}
+	TCPclient.print(p);
+	Serial.println("[Send to TCPServer]:String");
+	Serial.println(p);
 }
 
 
 /*
-  *³õÊ¼»¯ºÍ·şÎñÆ÷½¨Á¢Á¬½Ó
+  *åˆå§‹åŒ–å’ŒæœåŠ¡å™¨å»ºç«‹è¿æ¥
 */
 void startTCPClient()
 {
-    if ( TCPclient.connect(TCP_SERVER_ADDR , atoi(TCP_SERVER_PORT)) )
-    {
-        Serial.print("\nConnected to server:");
-        Serial.printf("%s:%d\r\n" , TCP_SERVER_ADDR , atoi(TCP_SERVER_PORT));
-        char tcpTemp[128];
-        sprintf(tcpTemp , "cmd=1&uid=%s&topic=%s\r\n" , UID , TOPIC);
-
-        sendtoTCPServer(tcpTemp);
-        preTCPConnected = true;
-        preHeartTick = millis();
-        TCPclient.setNoDelay(true);
-    } else
-    {
-        Serial.print("Failed connected to server:");
-        Serial.println(TCP_SERVER_ADDR);
-        TCPclient.stop();
-        preTCPConnected = false;
-    }
-    preTCPStartTick = millis();
+	if ( TCPclient.connect(TCP_SERVER_ADDR , atoi(TCP_SERVER_PORT)) )
+	{
+		Serial.print("\nConnected to server:");
+		Serial.printf("%s:%d\r\n" , TCP_SERVER_ADDR , atoi(TCP_SERVER_PORT));
+		sendtoTCPServer(sendHeartbeat(mState));
+		preTCPConnected = true;
+		preHeartTick = millis();
+		TCPclient.setNoDelay(true);
+	} else
+	{
+		Serial.print("Failed connected to server:");
+		Serial.println(TCP_SERVER_ADDR);
+		TCPclient.stop();
+		preTCPConnected = false;
+	}
+	preTCPStartTick = millis();
 }
 
 
 /*
-  *¼ì²éÊı¾İ£¬·¢ËÍĞÄÌø
+  *æ£€æŸ¥æ•°æ®ï¼Œå‘é€å¿ƒè·³
 */
 void doTCPClientTick()
 {
-    //¼ì²éÊÇ·ñ¶Ï¿ª£¬¶Ï¿ªºóÖØÁ¬
-    if ( WiFi.status() != WL_CONNECTED ) return;
+	//æ£€æŸ¥æ˜¯å¦æ–­å¼€ï¼Œæ–­å¼€åé‡è¿
+	if ( WiFi.status() != WL_CONNECTED ) return;
 
-    if ( !TCPclient.connected() )
-    {//¶Ï¿ªÖØÁ¬
+	if ( !TCPclient.connected() )
+	{//æ–­å¼€é‡è¿
 
-        if ( preTCPConnected == true )
-        {
+		if ( preTCPConnected == true )
+		{
 
-            preTCPConnected = false;
-            preTCPStartTick = millis();
-            Serial.println();
-            Serial.println("TCP Client disconnected.");
-            TCPclient.stop();
-        } else if ( millis() - preTCPStartTick > 1 * 1000 )//ÖØĞÂÁ¬½Ó
-        {
-            startTCPClient();
-        }
+			preTCPConnected = false;
+			preTCPStartTick = millis();
+			Serial.println();
+			Serial.println("TCP Client disconnected.");
+			TCPclient.stop();
+		} else if ( millis() - preTCPStartTick > 1 * 1000 )//é‡æ–°è¿æ¥
+		{
+			startTCPClient();
+		}
 
-    } else
-    {
-        if ( TCPclient.available() )
-        {//ÊÕÊı¾İ
-            while ( TCPclient.available() )
-            {
-                TcpClient_Buff += (char) TCPclient.read();
-            }
-            if ( TcpClient_Buff.length() > 0 )
-            {
-                processServerDeliveryInformation(TcpClient_Buff);
+	} else
+	{
+		if ( TCPclient.available() )
+		{//æ”¶æ•°æ®
+			while ( TCPclient.available() )
+			{
+				TcpClient_Buff += (char) TCPclient.read();
+			}
+			if ( TcpClient_Buff.length() > 0 )
+			{
+				processServerDeliveryInformation(TcpClient_Buff, &mState);
 
-            }
-            TcpClient_Buff = "";
-        }
-        if ( millis() - preHeartTick >= KEEPALIVEATIME )
-        {//±£³ÖĞÄÌø
-            preHeartTick = millis();
-            Serial.println("--Keep alive:");
-            sendtoTCPServer("cmd=0&msg=keep\r\n");
-        }
-    }
+			}
+			TcpClient_Buff = "";
+		}
+		if ( millis() - preHeartTick >= KEEPALIVEATIME )
+		{//ä¿æŒå¿ƒè·³
+			preHeartTick = millis();
+			Serial.println("--Keep alive:");
+			sendtoTCPServer(sendHeartbeat(mState));
+		}
+	}
+	//mState.Surplus_Flow=666;
+}
+void sendEquipmentStatus(machineState state,int time)
+{
+	String sendData = getMac();
+	sendData += "0C0003";
+	sendData += decToHex(state);
+	if ( state== PROPERWORK )
+	{
+		if ( time==0 )
+		{
+			Serial.println("è¯·ä¼ å€¼ï¼ç°åœ¨ç»ˆæ­¢");
+			return;
+		}
+		//æ­£å¸¸åˆ¶æ°´
+		String d_t = decToHex(time);
+		if ( d_t.length() < 4 )
+		{//æ£€æŸ¥çœ‹çœ‹æ˜¯å¦å¤Ÿ2å­—èŠ‚
+			String d_t1 = "";
+			for ( size_t i = 0; i < 4 - d_t.length(); i++ )
+			{
+				d_t1 += "0";
+			}
+			d_t1 += d_t;
+			sendData += d_t1;
+		} else
+		{
+			sendData += d_t;
+		}
+	} else
+	{
+		sendData += "0000";
+	}
+	sendData += decToHex(getCRC16(sendData));
+	Serial.println(sendData);
+	sendtoTCPServer(sendData);
 }
 
 void loop()
 {
-    doTCPClientTick();
+	doTCPClientTick();
 }

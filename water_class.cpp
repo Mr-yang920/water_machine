@@ -176,6 +176,16 @@ String decToHex(int Dec)
 		m = a[i];
 		str += hex[m];
 	}
+	if ( str.length()==0 )
+	{//防止返回空字符串
+		str = "0";
+	}
+	if ( str.length()%2 != 0 )
+	{//返回长度为单数就在其前补0
+		String d_t = "0";
+		d_t += str;
+		return d_t;
+	}
 	return str;
 }
 
@@ -257,11 +267,11 @@ String getMac()
 	String mac_s = "00";
 	for ( size_t i = 0; i < 6; i++ )
 	{
-		mac_s += hexToDec((String )mac[i]);
+		mac_s += hexToDec((String) mac[i]);
 	}
-	if ( mac_s.length()<20&& mac_s.length()>=16 )
+	if ( mac_s.length() < 20 && mac_s.length() >= 16 )
 	{
-		for ( size_t i = 0; i <= (20- mac_s.length()); i++ )
+		for ( size_t i = 0; i <= ( 20 - mac_s.length() ); i++ )
 		{
 			mac_s += "0";
 		}
@@ -306,17 +316,141 @@ uint16_t getCRC16(String data)
 	return CRC16_Modbus(buff , j);
 }
 
-bool sendHeartbeat()
+String sendHeartbeat(heartbeatConfig mState)
 {
+	Serial.print("设备状态");
+	Serial.println(mState.mState);
+	Serial.print("屏幕状态");
+	Serial.println(mState.screenState ? "关闭" : "打开");
+	Serial.print("工作模式");
+	Serial.println(mState.workMode ? "时长模式" : "流量模式");
 
-} 
+	if ( mState.mState )
+	{
+		//时长模式
+		Serial.print("剩余流量");
+		Serial.println(mState.Surplus_Flow);
+	} else
+	{
+		//流量模式
+		Serial.print("剩余天数");
+		Serial.println(mState.Surplus_Days);
+	}
+	Serial.println("已用流量0");
+	Serial.println("已用天数0");
+	Serial.print("净水TDS");
+	Serial.println(mState.clearwaterTDS);
+	Serial.print("原水TDS");
+	Serial.println(mState.tapWaterTDS);
 
-void processServerDeliveryInformation(String order)
+	Serial.println("第1级滤芯剩余值0");
+	Serial.println("第2级滤芯剩余值0");
+	Serial.println("第3级滤芯剩余值0");
+	Serial.println("第4级滤芯剩余值0");
+	Serial.println("第5级滤芯剩余值0");
+
+	Serial.print("第1级滤芯最大值");
+	Serial.println(mState.LX_MAX[0]);
+	Serial.print("第2级滤芯最大值");
+	Serial.println(mState.LX_MAX[1]);
+	Serial.print("第3级滤芯最大值");
+	Serial.println(mState.LX_MAX[2]);
+	Serial.print("第4级滤芯最大值");
+	Serial.println(mState.LX_MAX[3]);
+	Serial.print("第5级滤芯最大值");
+	Serial.println(mState.LX_MAX[4]);
+
+	Serial.print("信号强度值");
+	mState.RSSI = WiFi.RSSI();
+	
+	if ( mState.RSSI > 150 )
+	{
+		mState.RSSI -= 130;
+	}
+	//想要映射
+	/*
+	0 -113 dBm or less 
+	1 -111 dBm 
+	2...30 -109... -53 dBm 
+	31 -51 dBm or greater 
+	99 not known or not detectable
+
+	*/
+	if ( mState.RSSI>=113 )
+	{
+		mState.RSSI = 0;
+	} else 
+	{
+		mState.RSSI = ( map(mState.RSSI , 112 , 0 , 1 , 31) );
+	}
+	Serial.println(mState.RSSI);
+
+	Serial.println("LAC值0");
+	Serial.println("LAC值0");
+	String sendData = getMac();
+	sendData += "010028";
+	sendData += decToHex(mState.mState);//设备状态
+	sendData += decToHex(mState.screenState);//设备状态
+	sendData += decToHex(mState.workMode);//工作模式
+	if ( mState.workMode )
+	{
+		//时长模式
+		sendData += "0000";
+		String d_t = decToHex(mState.Surplus_Days);
+		if ( d_t.length()<4 )
+		{//检查看看是否够2字节
+			String d_t1 = "";
+			for ( size_t i = 0; i < 4-d_t.length(); i++ )
+			{
+				d_t1 += "0";
+			}
+			d_t1 += d_t;
+			sendData += d_t1;
+		} else
+		{
+			sendData += d_t;
+		}
+	} else
+	{
+		//流量模式
+		String d_t = decToHex(mState.Surplus_Flow);
+		if ( d_t.length() < 4 )
+		{//检查看看是否够2字节
+			String d_t1 = "";
+			for ( size_t i = 0; i < 4 - d_t.length(); i++ )
+			{
+				d_t1 += "0";
+			}
+			d_t1 += d_t;
+			sendData += d_t1;
+		} else
+		{
+			sendData += d_t;
+		}
+		sendData += "0000";
+	}
+	sendData += "00000000";//已用流量,已用天数
+	for ( size_t i = 0; i < 5; i++ )//1-5级滤芯剩余值
+	{
+		sendData += "0000";
+	}
+	for ( size_t i = 0; i < 5; i++ )//1-5级滤芯z最大值
+	{
+		sendData += decToHex(mState.LX_MAX[i]);
+	}
+	sendData += decToHex(mState.RSSI);//信号强度值
+	sendData += "00000000";//LAC值,LAC值
+	sendData += decToHex(getCRC16(sendData));
+	Serial.println(sendData);
+	return sendData;
+}
+
+void processServerDeliveryInformation(String order , heartbeatConfig* mState)
 {
 	String d = (String) order[0];
 	Serial.println(d.toInt());
-	Serial.println(order[0]=='0');
-	
+	Serial.println(order[0] == '0');
+
 	Serial.print("命令如下：");
 	Serial.println(order);
 	//防止传输错误
@@ -325,4 +459,213 @@ void processServerDeliveryInformation(String order)
 		Serial.println("此命令无效！现在终止");
 		return;
 	}
+	//先验证传输是否出现错误
+	String data = order.substring(0 , order.length() - 4);
+	String CRC16 = order.substring(order.length() - 4);
+	Serial.println(data);
+	Serial.println(CRC16);
+	if ( getCRC16(data) == hexToDec(CRC16) )
+	{
+		Serial.println("命令传输无误");
+		//解析设备号
+		String ID = data.substring(0 , 20);
+		//解析命令类型
+		String orderType = data.substring(20 , 26);
+		Serial.println(ID);
+		Serial.println(orderType);
+		if ( ID == getMac() )
+		{
+			String orderData = data.substring(26);
+			String outData;
+
+			if ( orderType == "02000B" )
+			{
+				StaticJsonDocument<128> doc;
+				bool RST = false;
+				if ( SPIFFS.exists("/setMealData") )
+				{
+					RST = true;//重启设备，防止计费混乱
+				}
+				Serial.println("绑定套餐");
+				if ( orderData.substring(0 , 2) == "00" )
+				{
+					Serial.println("流量模式");
+					doc["workMode"] = 0;
+					mState->workMode = 0;
+				} else if ( orderData.substring(0 , 2) == "01" )
+				{
+					Serial.println("时间模式");
+					doc["workMode"] = 1;
+					mState->workMode = 1;
+				}
+				//解析滤芯最大值
+				uint16_t LX_MAX_[5] = {};
+				JsonArray LX_MAX = doc.createNestedArray("LX_MAX");
+				for ( size_t i = 0; i < 5; i++ )
+				{
+					String d_t = orderData.substring(2 + i * 4 , 6 + i * 4);
+					LX_MAX_[i] = hexToDec(d_t);
+					Serial.println(LX_MAX_[i]);
+					LX_MAX.add(LX_MAX_[i]);
+					mState->LX_MAX[i] = LX_MAX_[i];
+				}
+				doc["balance"] = 0;
+				serializeJson(doc , outData);
+				Serial.println(outData);
+				File dataFile = SPIFFS.open("/setMealData" , "w");// 建立File对象用于向SPIFFS中的file对象写入信息
+				dataFile.print(outData);
+				dataFile.close();
+				mState->mState = ARREARAGE;//欠费
+				if ( RST )
+				{
+					Serial.println("套餐修改完毕，现在重启设备");
+					ESP.restart();//重启设备
+				}
+			} else if ( orderType == "070001" )
+			{
+				Serial.println("强制冲洗");
+				if ( !SPIFFS.exists("/setMealData") )
+				{
+					Serial.println("请先绑定套餐，现在终止");
+					return;
+				}
+			} else if ( orderType == "080002" )
+			{
+				//Serial.println("充正值");
+				Serial.print("充正值天数/流量");
+				Serial.println(hexToDec(orderData));
+				if ( !SPIFFS.exists("/setMealData") )
+				{
+					Serial.println("请先绑定套餐，现在终止");
+					return;
+				}
+				StaticJsonDocument<128> doc;
+				doc["workMode"] = mState->workMode;
+				//解析滤芯最大值
+				//uint16_t LX_MAX_[5] = {};
+				JsonArray LX_MAX = doc.createNestedArray("LX_MAX");
+				for ( size_t i = 0; i < 5; i++ )
+				{
+					LX_MAX[i] = mState->LX_MAX[i];
+				}
+				if ( mState->workMode )
+				{
+					//时长模式
+					//读取剩余时长
+					mState->Surplus_Days += hexToDec(orderData);
+					if ( mState->Surplus_Days > 0 )
+					{
+						mState->mState = PROPERWORK;
+					} else
+					{
+						mState->mState = ARREARAGE;
+					}
+				} else
+				{
+					//流量模式
+					//读取剩余流量
+					mState->Surplus_Flow += hexToDec(orderData);
+					if ( mState->Surplus_Flow > 0 )
+					{
+						mState->mState = PROPERWORK;
+					} else
+					{
+						mState->mState = ARREARAGE;
+					}
+				}
+				doc["balance"] = mState->Surplus_Flow;
+				serializeJson(doc , outData);
+				Serial.println(outData);
+				File dataFile = SPIFFS.open("/setMealData" , "w");// 建立File对象用于向SPIFFS中的file对象写入信息
+				dataFile.print(outData);
+				dataFile.close();
+
+			} else if ( orderType == "090002" )
+			{
+				//Serial.println("负正值");
+				Serial.print("充负值天数/流量");
+				Serial.println(hexToDec(orderData));
+				if ( !SPIFFS.exists("/setMealData") )
+				{
+					Serial.println("请先绑定套餐，现在终止");
+					return;
+				}
+				StaticJsonDocument<128> doc;
+				doc["workMode"] = mState->workMode;
+				//解析滤芯最大值
+				//uint16_t LX_MAX_[5] = {};
+				JsonArray LX_MAX = doc.createNestedArray("LX_MAX");
+				for ( size_t i = 0; i < 5; i++ )
+				{
+					LX_MAX[i] = mState->LX_MAX[i];
+				}
+				if ( mState->workMode )
+				{
+					//时长模式
+					//读取剩余时长
+					mState->Surplus_Days -= hexToDec(orderData);
+					if ( mState->Surplus_Days > 0 )
+					{
+						mState->mState = PROPERWORK;
+					} else
+					{
+						mState->mState = ARREARAGE;
+					}
+				} else
+				{
+					//流量模式
+					//读取剩余流量
+					mState->Surplus_Flow -= hexToDec(orderData);
+					if ( mState->Surplus_Flow > 0 )
+					{
+						mState->mState = PROPERWORK;
+					} else
+					{
+						mState->mState = ARREARAGE;
+					}
+				}
+				if ( mState->Surplus_Flow<0 )//防止余额出现负值
+				{
+					Serial.println("冲的负值大于当前余额，余额计为0");
+					mState->Surplus_Flow = 0;
+				}
+				doc["balance"] = mState->Surplus_Flow;
+				serializeJson(doc , outData);
+				Serial.println(outData);
+				File dataFile = SPIFFS.open("/setMealData" , "w");// 建立File对象用于向SPIFFS中的file对象写入信息
+				dataFile.print(outData);
+				dataFile.close();
+			} else if ( orderType == "100001" )
+			{
+				Serial.println("恢复出厂设置");
+			} else if ( orderType == "110021" )
+			{
+				Serial.println("修改域名和端口号");
+			} else if ( orderType == "130002" )
+			{
+				Serial.println("修改心跳周期");
+			} else
+			{
+				Serial.println("非法命令，现在终止");
+			}
+		} else
+		{
+			Serial.println("此命令对此设备无效");
+		}
+	} else
+	{
+		Serial.print(getCRC16(data));
+		Serial.println("-此命令无效！现在终止");
+	}
 }
+
+//void test(heartbeatConfig state)
+//{
+//	state.Surplus_Flow = 888;
+//	Serial.println(state.Surplus_Flow);
+//}
+//void test1(heartbeatConfig* state)
+//{
+//	state->Surplus_Flow = 888;
+//	Serial.println(state->Surplus_Flow);
+//}
