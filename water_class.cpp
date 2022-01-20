@@ -430,6 +430,36 @@ String sendHeartbeat(heartbeatConfig mState)
 		sendData += "0000";
 	}
 	sendData += "00000000";//已用流量,已用天数
+	String d_t = decToHex(mState.clearwaterTDS);
+	if ( d_t.length() < 4 )
+	{//检查看看是否够2字节
+		String d_t1 = "";
+		for ( size_t i = 0; i < 4 - d_t.length(); i++ )
+		{
+			d_t1 += "0";
+		}
+		d_t1 += d_t;
+		sendData += d_t1;
+	} else
+	{
+		sendData += d_t;
+	}
+
+	d_t = decToHex(mState.tapWaterTDS);
+	if ( d_t.length() < 4 )
+	{//检查看看是否够2字节
+		String d_t1 = "";
+		for ( size_t i = 0; i < 4 - d_t.length(); i++ )
+		{
+			d_t1 += "0";
+		}
+		d_t1 += d_t;
+		sendData += d_t1;
+	} else
+	{
+		sendData += d_t;
+	}
+
 	for ( size_t i = 0; i < 5; i++ )//1-5级滤芯剩余值
 	{
 		sendData += "0000";

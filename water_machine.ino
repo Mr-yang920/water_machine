@@ -234,8 +234,13 @@ void monitoring(void* pvParameters)
 			{
 				//缺水
 				digitalWrite(RED_LED , HIGH);
+				if ( mState.mState != WATERLITTLE )
+				{
+					sendEquipmentStatus(WATERLITTLE);
+				}
 				mState.mState = WATERLITTLE;
-				sendEquipmentStatus(WATERLITTLE);
+				
+				
 				Serial.println("缺水");
 				isLowWater = true;
 			}
@@ -272,8 +277,12 @@ void monitoring(void* pvParameters)
 			//水满
 			Serial.println("水满");
 			digitalWrite(YELLOW_LED , HIGH);
+			if ( mState.mState != WATERFULL )
+			{
+				sendEquipmentStatus(WATERFULL);
+			}
 			mState.mState = WATERFULL;
-			sendEquipmentStatus(WATERFULL);
+			
 			continue;
 		} else
 		{
