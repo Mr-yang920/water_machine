@@ -7,7 +7,13 @@
 #include <WiFi.h>
 #include "water_class.h"
 #include <WiFiClient.h>
+#include <MD5.h>
+#include <HTTPClient.h>
 
+#include <WiFiClientSecure.h>
+#include <Update.h>
+#include <HttpsOTAUpdate.h>
+#include <HTTPUpdate.h>
 
 //服务器地址
 #define TCP_SERVER_ADDR "192.168.31.176"
@@ -40,7 +46,9 @@ void setup()
 {
 
 	Serial.begin(115200);
-	
+	//getOtaPwd("http://bin.bemfa.com/b/3BcOTA4OTVkMzU0NWIzMWQ5ZmVkOGU1NzQzMjk3OThmOTk=esp32.bin","1642941623");
+	/*Serial.print("OTA版本");*/
+	Serial.println(getCRC16("0011823372515831040007000100"));
 	//初始化闪存系统
 	Serial.print("正在打开闪存系统...");
 	while ( !SPIFFS.begin(true) )
@@ -165,8 +173,30 @@ void monitoring(void* pvParameters)
 	uint8_t lowWaterTime = 0;//缺水时间
 	bool isLowWater = false;
 	long disConnectedServerTime = 0;//和服务器断开的时间
+	//int washTime = 0;//冲洗时间
+	//bool updataFullWater = false;
 	while ( true )
 	{
+		vTaskDelay(1000);
+		if ( mState.mState == LXTOBERESET )
+		{
+			//看看是否有冲洗命令
+			for ( size_t i = 0; i < 5; i++ )
+			{
+				digitalWrite(RED_LED , LOW);
+				digitalWrite(YELLOW_LED , LOW);
+				digitalWrite(GREEN_LED , LOW);
+
+				digitalWrite(GREEN_LED , HIGH);
+				vTaskDelay(1000);
+				digitalWrite(GREEN_LED , LOW);
+				digitalWrite(YELLOW_LED , HIGH);
+				vTaskDelay(1000);
+				digitalWrite(YELLOW_LED , LOW);
+				digitalWrite(RED_LED , HIGH);
+				vTaskDelay(1000);
+			}
+		}
 		if ( !TCPclient.connected() )
 		{
 			disConnectedServerTime++;
@@ -193,57 +223,86 @@ void monitoring(void* pvParameters)
 		{
 			disConnectedServerTime = 0;
 		}
-		vTaskDelay(1000);
+		
 		//更新计费状态
 		if ( mState.workMode )
 		{
 			//时长模式
 			//读取剩余时长
-			if ( mState.Surplus_Days > 0 )
+			if ( mState.Surplus_Days <= 0 )
 			{
-				mState.mState = PROPERWORK;
+				//mState.mState = PROPERWORK;
+				digitalWrite(RED_LED , HIGH);
+				vTaskDelay(1000);
+				digitalWrite(RED_LED , LOW);
+				Serial.println("欠费");
+				continue;
 			} else
 			{
-				mState.mState = ARREARAGE;
+				//mState.mState = ARREARAGE;
+				
 			}
 		} else
 		{
 			//流量模式
 			//读取剩余流量
-			if ( mState.Surplus_Flow > 0 )
+			if ( mState.Surplus_Flow <= 0 )
 			{
-				mState.mState = PROPERWORK;
+				/*mState.mState = PROPERWORK;*/
+				digitalWrite(RED_LED , HIGH);
+				vTaskDelay(1000);
+				digitalWrite(RED_LED , LOW);
+				Serial.println("欠费");
+				continue;
 			} else
 			{
-				mState.mState = ARREARAGE;
+				//mState.mState = ARREARAGE;
 			}
 		}
-		if ( mState.mState == DEACTIVATE || mState.mState == STANDBY || mState.mState == ARREARAGE )//备用，待激活，欠费，都不进行检查
-		{
-			digitalWrite(RED_LED , HIGH);
-			vTaskDelay(1000);
-			digitalWrite(RED_LED , LOW);
-			Serial.println("欠费");
-			continue;
-		}
+		
+		//if ( mState.mState == DEACTIVATE || mState.mState == STANDBY )//备用，待激活，都不进行检查
+		//{
+		//	digitalWrite(RED_LED , HIGH);
+		//	Serial.println("欠费");
+		//	continue;
+		//} else
+		//{
+		//	digitalWrite(RED_LED , LOW);
+		//}
+	
+		//if ( mState.mState == ARREARAGE )//欠费
+		//{
+		//	digitalWrite(RED_LED , HIGH);
+		//	vTaskDelay(1000);
+		//	digitalWrite(RED_LED , LOW);
+		//	Serial.println("欠费");
+		//	continue;
+		//}
 		if ( digitalRead(LOW_PRESSSURE) )//检查是否缺水
 		{
+			/*while ( digitalRead(LOW_PRESSSURE) )
+			{*/
+			//直到不缺水为止
 			lowWaterTime++;
 			Serial.println(lowWaterTime);
-			if ( lowWaterTime>=60 )
+			if ( lowWaterTime >= 60 )
 			{
 				//缺水
 				digitalWrite(RED_LED , HIGH);
+				mState.mState = WATERLITTLE;
 				if ( mState.mState != WATERLITTLE )
 				{
 					sendEquipmentStatus(WATERLITTLE);
 				}
-				mState.mState = WATERLITTLE;
 				
-				
+
+
 				Serial.println("缺水");
 				isLowWater = true;
 			}
+			//vTaskDelay(1000);
+			//}
+			
 			continue;
 		} else
 		{
@@ -277,11 +336,18 @@ void monitoring(void* pvParameters)
 			//水满
 			Serial.println("水满");
 			digitalWrite(YELLOW_LED , HIGH);
+			mState.mState = WATERFULL;
 			if ( mState.mState != WATERFULL )
 			{
 				sendEquipmentStatus(WATERFULL);
 			}
-			mState.mState = WATERFULL;
+			
+			//while ( !digitalRead(HIGH_PRESSSURE) )
+			//{
+			//	//直到水不满为止
+			//	Serial.println("水满");
+			//	vTaskDelay(1000);
+			//}
 			
 			continue;
 		} else
@@ -355,7 +421,8 @@ void monitoring(void* pvParameters)
 				digitalWrite(YELLOW_LED , LOW);
 				digitalWrite(GREEN_LED , LOW);
 
-				sendEquipmentStatus(PROPERWORK, workTime);
+				sendEquipmentStatus(WATERMAKE , workTime);
+				vTaskDelay(1000);//让服务器接收到
 				break;
 			}
 
@@ -363,7 +430,7 @@ void monitoring(void* pvParameters)
 			Serial.println("制水");
 			digitalWrite(GREEN_LED , HIGH);
 			vTaskDelay(1000);
-			workTime++;
+			workTime+=2;
 			digitalWrite(GREEN_LED , LOW);
 			vTaskDelay(1000);
 			//if ( workTime > 60 * 60 * 6 )//是否连续工作6小时
@@ -467,7 +534,7 @@ void doTCPClientTick()
 			if ( TcpClient_Buff.length() > 0 )
 			{
 				processServerDeliveryInformation(TcpClient_Buff , &mState);
-
+				sendtoTCPServer(TcpClient_Buff);//给服务器回复
 			}
 			TcpClient_Buff = "";
 		}
@@ -475,6 +542,11 @@ void doTCPClientTick()
 		{//保持心跳
 			preHeartTick = millis();
 			Serial.println("--Keep alive:");
+			if ( mState.mState == LXTOBERESET )
+			{
+				Serial.println("冲洗状态，不发送心跳包");
+				return;
+			}
 			sendtoTCPServer(sendHeartbeat(mState));
 		}
 	}
@@ -515,6 +587,8 @@ void sendEquipmentStatus(machineState state , int time)
 	Serial.println(sendData);
 	sendtoTCPServer(sendData);
 }
+
+
 
 void loop()
 {

@@ -4,11 +4,14 @@
 #include <SPI.h>
 #include <ArduinoJson.h>
 #include <FS.h>
-//#include <BluetoothSerial.h>
 #include <WiFi.h>
 #include <WString.h> 
+#include <MD5.h>
+#include <ArduinoJson.h>
+#include <HTTPUpdate.h>
 
 #define MAX_SRV_CLIENTS 2
+#define OTA_PUBLIC_PWD "0123456789"
 
 enum errType
 {
@@ -31,8 +34,8 @@ enum machineState
 	WATERMAKE ,     //漏水
 	LXTOBERESET ,   //滤芯待复位
 	HARDWARE ,      //硬件测试
-	WORK_CONTINUOUSLY_FOR_6_HOURS=5 ,//连续制水6小时
-	START_AND_STOP_IN_3_MINUTES=10 ,  //3分钟内启停故障
+	WORK_CONTINUOUSLY_FOR_6_HOURS = 5 ,//连续制水6小时
+	START_AND_STOP_IN_3_MINUTES = 10 ,  //3分钟内启停故障
 	START_AND_STOP_IN_2_HOURS ,    //2小时内启停故障
 	SIM_CARD_LOST ,                //SIM卡丢失
 	WIFI_LOST ,                    //Wifi断开
@@ -85,3 +88,5 @@ void processServerDeliveryInformation(String order,heartbeatConfig *mState);//�
 void sendEquipmentStatus(machineState state, int time=0);//设备状态发生改变时向服务器上报信息
 //void test(heartbeatConfig state);
 //void test1(heartbeatConfig *state);
+String getOtaPwd(String otaAddress ,String time);
+void isOta(String JSONData);

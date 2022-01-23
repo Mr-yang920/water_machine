@@ -1,5 +1,10 @@
 ﻿#include "water_class.h"
 
+#define YELLOW_LED 5//水满
+#define RED_LED 19//缺水
+#define GREEN_LED 18//正常制水
+
+void updateBin(String otaAddress);
 bool connWifi(String data)
 {
 	StaticJsonDocument<96> doc;
@@ -478,8 +483,12 @@ String sendHeartbeat(heartbeatConfig mState)
 void processServerDeliveryInformation(String order , heartbeatConfig* mState)
 {
 	String d = (String) order[0];
-	Serial.println(d.toInt());
-	Serial.println(order[0] == '0');
+	if ( order[0] == '{' )
+	{
+		Serial.println("ota命令");
+		isOta(order);
+		return;
+	}
 
 	Serial.print("命令如下：");
 	Serial.println(order);
@@ -559,6 +568,8 @@ void processServerDeliveryInformation(String order , heartbeatConfig* mState)
 					Serial.println("请先绑定套餐，现在终止");
 					return;
 				}
+				mState->mState = LXTOBERESET;
+				
 			} else if ( orderType == "080002" )
 			{
 				//Serial.println("充正值");
@@ -689,13 +700,86 @@ void processServerDeliveryInformation(String order , heartbeatConfig* mState)
 	}
 }
 
-//void test(heartbeatConfig state)
-//{
-//	state.Surplus_Flow = 888;
-//	Serial.println(state.Surplus_Flow);
-//}
-//void test1(heartbeatConfig* state)
-//{
-//	state->Surplus_Flow = 888;
-//	Serial.println(state->Surplus_Flow);
-//}
+String getOtaPwd(String otaAddress , String time)
+{
+	String data = getMac();
+	data += otaAddress;
+	data += time;
+	data += OTA_PUBLIC_PWD;
+
+	//Serial.println(data);
+	
+	
+	char a[200];
+	int dataLen = data.length();
+	//Serial.println(dataLen);
+	if ( dataLen>195 )
+	{
+		Serial.println("数据亮过大！现在最终");
+		return "";
+	}
+	for ( size_t i = 0; i < dataLen; i++ )
+	{
+		a[i] = data[i];
+	}
+	unsigned char* hash = MD5::make_hash(a, dataLen);
+	char* md5str = MD5::make_digest(hash , 16);
+	String retData = md5str;
+	free(hash);
+	//Serial.println(md5str);
+	free(md5str);
+	return retData;
+}
+void isOta(String JSONData)
+{
+	// Stream& input;
+
+	StaticJsonDocument<256> doc;
+
+	DeserializationError error = deserializeJson(doc , JSONData);
+
+	if ( error )
+	{
+		Serial.print("deserializeJson() failed: ");
+		Serial.println(error.c_str());
+		return;
+	}
+
+	String otaAddress = doc["otaAddress"]; // "www.baidu.com"
+	String time = doc["time"]; // "1642941623"
+	String verifyVal = doc["verifyVal"]; // "06789c678049c1e27d5005efb3bbd93a"
+	String a = getOtaPwd(otaAddress , time);
+	verifyVal.toLowerCase();
+	if ( getOtaPwd(otaAddress , time)== verifyVal )
+	{
+		Serial.println("ota效验成功，开始升级");
+		updateBin(otaAddress);
+	} else
+	{
+		Serial.println("ota效验错误");
+		Serial.println(getOtaPwd(otaAddress , time));
+		Serial.println(otaAddress);
+		Serial.println(time);
+		Serial.println(verifyVal);
+	}
+
+}
+
+void updateBin(String otaAddress)
+{
+	Serial.println("start update");
+	WiFiClient UpdateClient;
+	t_httpUpdate_return ret = httpUpdate.update(UpdateClient , otaAddress);
+	switch ( ret )
+	{
+		case HTTP_UPDATE_FAILED:      //当升级失败
+			Serial.println("[update] Update failed.");
+			break;
+		case HTTP_UPDATE_NO_UPDATES:  //当无升级
+			Serial.println("[update] Update no Update.");
+			break;
+		case HTTP_UPDATE_OK:         //当升级成功
+			Serial.println("[update] Update ok.");
+			break;
+	}
+}
