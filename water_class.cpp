@@ -471,7 +471,22 @@ String sendHeartbeat(heartbeatConfig mState)
 	}
 	for ( size_t i = 0; i < 5; i++ )//1-5级滤芯z最大值
 	{
-		sendData += decToHex(mState.LX_MAX[i]);
+		//检查看看是否够2字节
+		//sendData += decToHex(mState.LX_MAX[i]);
+		d_t = decToHex(mState.LX_MAX[i]);
+		if ( d_t.length() < 4 )
+		{//检查看看是否够2字节
+			String d_t1 = "";
+			for ( size_t i = 0; i < 4 - d_t.length(); i++ )
+			{
+				d_t1 += "0";
+			}
+			d_t1 += d_t;
+			sendData += d_t1;
+		} else
+		{
+			sendData += d_t;
+		}
 	}
 	sendData += decToHex(mState.RSSI);//信号强度值
 	sendData += "00000000";//LAC值,LAC值

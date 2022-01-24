@@ -91,3 +91,4 @@ void sendEquipmentStatus(machineState state, int time=0);//设备状态发生改
 String getOtaPwd(String otaAddress ,String time);
 bool isOta(String JSONData);
 void sendtoTCPServer(String p);
+String updataVersion();

@@ -32,6 +32,8 @@
 #define HIGH_PRESSSURE 33
 #define LOW_PRESSSURE 25
 
+#define VERSION "0001"
+
 //tcp客户端相关初始化，默认即可
 WiFiClient TCPclient;
 String TcpClient_Buff = "";
@@ -56,6 +58,7 @@ void setup()
 	/*Serial.print("OTA版本");*/
 	//Serial.println(getCRC16("0011823372515831040007000100"));
 	//初始化闪存系统
+	//Serial.print(updataVersion());
 	Serial.print("正在打开闪存系统...");
 	while ( !SPIFFS.begin(true) )
 	{
@@ -294,12 +297,12 @@ void monitoring(void* pvParameters)
 			{
 				//缺水
 				digitalWrite(RED_LED , HIGH);
-				mState.mState = WATERLITTLE;
+				
 				if ( mState.mState != WATERLITTLE )
 				{
 					sendEquipmentStatus(WATERLITTLE);
 				}
-				
+				mState.mState = WATERLITTLE;
 
 
 				Serial.println("缺水");
@@ -341,12 +344,12 @@ void monitoring(void* pvParameters)
 			//水满
 			Serial.println("水满");
 			digitalWrite(YELLOW_LED , HIGH);
-			mState.mState = WATERFULL;
+			
 			if ( mState.mState != WATERFULL )
 			{
 				sendEquipmentStatus(WATERFULL);
 			}
-			
+			mState.mState = WATERFULL;
 			//while ( !digitalRead(HIGH_PRESSSURE) )
 			//{
 			//	//直到水不满为止
@@ -426,7 +429,7 @@ void monitoring(void* pvParameters)
 				digitalWrite(YELLOW_LED , LOW);
 				digitalWrite(GREEN_LED , LOW);
 
-				sendEquipmentStatus(WATERMAKE , workTime);
+				//sendEquipmentStatus(PROPERWORK , workTime);
 				vTaskDelay(1000);//让服务器接收到
 				break;
 			}
@@ -489,7 +492,10 @@ void startTCPClient()
 	{
 		Serial.print("\nConnected to server:");
 		Serial.printf("%s:%d\r\n" , TCP_SERVER_ADDR , atoi(TCP_SERVER_PORT));
-		sendtoTCPServer(sendHeartbeat(mState));
+		sendtoTCPServer(updataVersion());//和服务器连接成功后立即发送设备版本信息
+		delay(1000);
+		sendtoTCPServer(sendHeartbeat(mState));//和服务器连接成功后立即发送心跳包
+
 		preTCPConnected = true;
 		preHeartTick = millis();
 		TCPclient.setNoDelay(true);
@@ -566,6 +572,12 @@ void doTCPClientTick()
 				Serial.println("冲洗状态，不发送心跳包");
 				return;
 			}
+			/*if ( mState.mState == DEACTIVATE )
+			{
+				Serial.println("设备待激活，发送待激活心跳包");
+				sendtoTCPServer("");
+				return;
+			}*/
 			sendtoTCPServer(sendHeartbeat(mState));
 		}
 	}
@@ -607,7 +619,14 @@ void sendEquipmentStatus(machineState state , int time)
 	sendtoTCPServer(sendData);
 }
 
-
+String updataVersion()
+{
+	String data = getMac();
+	data += "666666";
+	data += VERSION;
+	data += getCRC16(data);
+	return data;
+}
 
 void loop()
 {
