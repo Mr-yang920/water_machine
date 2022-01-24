@@ -44,11 +44,17 @@ heartbeatConfig mState;
 
 void setup()
 {
+	pinMode(RED_LED , OUTPUT);
+	pinMode(GREEN_LED , OUTPUT);
+	pinMode(YELLOW_LED , OUTPUT);
+	digitalWrite(RED_LED , LOW);
+	digitalWrite(YELLOW_LED , LOW);
+	digitalWrite(GREEN_LED , LOW);
 
 	Serial.begin(115200);
 	//getOtaPwd("http://bin.bemfa.com/b/3BcOTA4OTVkMzU0NWIzMWQ5ZmVkOGU1NzQzMjk3OThmOTk=esp32.bin","1642941623");
 	/*Serial.print("OTA版本");*/
-	Serial.println(getCRC16("0011823372515831040007000100"));
+	//Serial.println(getCRC16("0011823372515831040007000100"));
 	//初始化闪存系统
 	Serial.print("正在打开闪存系统...");
 	while ( !SPIFFS.begin(true) )
@@ -133,6 +139,7 @@ void setup()
 		if ( connWifi(fsData) )
 		{
 			//如果wifi连接成功，开始连接服务器
+			Serial.print("此设备ID：");
 			Serial.println(getMac());
 		}
 	} else
@@ -161,9 +168,7 @@ void setup()
 
 void monitoring(void* pvParameters)
 {
-	pinMode(RED_LED , OUTPUT);
-	pinMode(GREEN_LED , OUTPUT);
-	pinMode(YELLOW_LED , OUTPUT);
+	
 	pinMode(HIGH_PRESSSURE , INPUT_PULLUP);
 	pinMode(LOW_PRESSSURE , INPUT_PULLUP);
 	uint8_t workNum = 0;//制水次数2小时
@@ -533,6 +538,20 @@ void doTCPClientTick()
 			}
 			if ( TcpClient_Buff.length() > 0 )
 			{
+				//String d = (String) TcpClient_Buff[0];
+				/*if ( TcpClient_Buff[0] == '{' )
+				{
+					Serial.println("ota命令@");
+					if ( isOta(TcpClient_Buff) )
+					{
+						Serial.println("成功");
+					} else
+					{
+						Serial.println("失败");
+					}
+					
+					return;
+				}*/
 				processServerDeliveryInformation(TcpClient_Buff , &mState);
 				sendtoTCPServer(TcpClient_Buff);//给服务器回复
 			}

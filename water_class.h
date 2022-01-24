@@ -89,4 +89,5 @@ void sendEquipmentStatus(machineState state, int time=0);//设备状态发生改
 //void test(heartbeatConfig state);
 //void test1(heartbeatConfig *state);
 String getOtaPwd(String otaAddress ,String time);
-void isOta(String JSONData);
+bool isOta(String JSONData);
+void sendtoTCPServer(String p);

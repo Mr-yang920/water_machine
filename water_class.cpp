@@ -730,7 +730,7 @@ String getOtaPwd(String otaAddress , String time)
 	free(md5str);
 	return retData;
 }
-void isOta(String JSONData)
+bool isOta(String JSONData)
 {
 	// Stream& input;
 
@@ -742,7 +742,7 @@ void isOta(String JSONData)
 	{
 		Serial.print("deserializeJson() failed: ");
 		Serial.println(error.c_str());
-		return;
+		return false;
 	}
 
 	String otaAddress = doc["otaAddress"]; // "www.baidu.com"
@@ -753,14 +753,18 @@ void isOta(String JSONData)
 	if ( getOtaPwd(otaAddress , time)== verifyVal )
 	{
 		Serial.println("ota效验成功，开始升级");
+		sendtoTCPServer("{\"type\":\"otaResult\",\"code\":1}");
 		updateBin(otaAddress);
+		return true;
 	} else
 	{
 		Serial.println("ota效验错误");
+		sendtoTCPServer("{\"type\":\"otaResult\",\"code\":0}");
 		Serial.println(getOtaPwd(otaAddress , time));
 		Serial.println(otaAddress);
 		Serial.println(time);
 		Serial.println(verifyVal);
+		return false;
 	}
 
 }
