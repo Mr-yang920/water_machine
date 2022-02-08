@@ -269,7 +269,7 @@ String getMac()
 {
 	byte mac[6];// 存放 MAC 位址的阵列
 	WiFi.macAddress(mac);
-	String mac_s = "00";
+	String mac_s = "01";//固定位
 	for ( size_t i = 0; i < 6; i++ )
 	{
 		mac_s += hexToDec((String) mac[i]);

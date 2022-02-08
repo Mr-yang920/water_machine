@@ -6,6 +6,7 @@
 //#include <BluetoothSerial.h>
 #include <WiFi.h>
 #include "water_class.h"
+#include "screen.h"
 #include <WiFiClient.h>
 #include <MD5.h>
 #include <HTTPClient.h>
@@ -57,6 +58,12 @@ void setup()
 	//getOtaPwd("http://bin.bemfa.com/b/3BcOTA4OTVkMzU0NWIzMWQ5ZmVkOGU1NzQzMjk3OThmOTk=esp32.bin","1642941623");
 	/*Serial.print("OTA版本");*/
 	//Serial.println(getCRC16("0011823372515831040007000100"));
+	char seven[] =
+	{
+		0x11,0x21,0x31
+	};
+	sendData(seven , 3);
+	Serial.println((int) seven[0] , 16);
 	//初始化闪存系统
 	//Serial.print(updataVersion());
 	Serial.print("正在打开闪存系统...");

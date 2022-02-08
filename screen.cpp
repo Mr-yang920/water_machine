@@ -1,0 +1,95 @@
+#include "screen.h"
+#include <Arduino.h>
+
+char zero[] =
+{
+	0x11,0x21,0x31,0x41,0x51,0x61
+};
+
+char one[] =
+{
+	0x21,0x31
+};
+
+char two[] =
+{
+	0x11,0x21,0x71,0x51,0x41
+};
+
+char three[] =
+{
+	0x11,0x21,0x31,0x41,0x71
+};
+
+char four[] =
+{
+	0x21,0x31,0x61,0x71
+};
+
+char five[] =
+{
+	0x11,0x31,0x41,0x61,0x71
+};
+
+char six[] =
+{
+	0x11,0x31,0x41,0x51,0x61,0x71
+};
+
+char seven[] =
+{
+	0x11,0x21,0x31
+};
+
+char eight[] =
+{
+	0x11,0x21,0x31,0x41,0x51,0x61,0x71
+};
+
+char nine[] =
+{
+	0x11,0x21,0x31,0x61,0x71
+};
+
+void sendData(char* data , int dataLen)
+{
+	for ( size_t i = 0; i < dataLen; i++ )
+	{
+		Serial.println((int)data[i],16);
+	}
+	data[0] = 0x99;
+}
+
+void displayOriginalWater(bool display, bool displayType)
+{
+	if ( display )
+	{
+		if ( displayType )
+		{
+
+		} else
+		{
+
+		}
+	} else
+	{
+
+	}
+}
+
+void displayCleanWater(bool display , bool displayType)
+{
+	if ( display )
+	{
+		if ( displayType )
+		{
+
+		} else
+		{
+
+		}
+	} else
+	{
+
+	}
+}

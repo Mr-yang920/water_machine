@@ -7,7 +7,7 @@
 #include <WiFi.h>
 #include <WString.h> 
 #include <MD5.h>
-#include <ArduinoJson.h>
+//#include <ArduinoJson.h>
 #include <HTTPUpdate.h>
 
 #define MAX_SRV_CLIENTS 2
