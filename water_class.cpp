@@ -284,6 +284,11 @@ String getMac()
 	return mac_s;
 }
 
+String getEquipmentID()
+{
+	return getMac().substring(14);
+}
+
 uint16_t CRC16_Modbus(uint8_t* buf , uint16_t len)
 {
 	uint16_t crc = 0xFFFF;

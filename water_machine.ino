@@ -58,12 +58,22 @@ void setup()
 	//getOtaPwd("http://bin.bemfa.com/b/3BcOTA4OTVkMzU0NWIzMWQ5ZmVkOGU1NzQzMjk3OThmOTk=esp32.bin","1642941623");
 	/*Serial.print("OTA版本");*/
 	//Serial.println(getCRC16("0011823372515831040007000100"));
-	char seven[] =
+	//char seven[] =
+	//{
+	//	0x11,0x21,0x31,0x41,0x51,0x61
+	//};
+	//for ( size_t i = 0; i < 10; i++ )
+	//{
+	//	sendData(seven,sizeof(seven));//!1
+	//	delay(5000);
+	//}
+	
+	/*for ( size_t i = 0; i < 3; i++ )
 	{
-		0x11,0x21,0x31
-	};
-	sendData(seven , 3);
-	Serial.println((int) seven[0] , 16);
+		displaySignalIco();
+		delay(5000);
+	}
+	Serial.println(getEquipmentID());*/
 	//初始化闪存系统
 	//Serial.print(updataVersion());
 	Serial.print("正在打开闪存系统...");

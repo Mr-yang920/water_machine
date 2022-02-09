@@ -78,6 +78,7 @@ void configWifi();//配置wifi，从app获取
 void saveWifiData(String wifiData);//保存wifi信息
 void disposeErrData(errType err);//反馈错误信息
 String getMac();//得到设备mac地址20位
+String getEquipmentID();//得到设备的的ID号（MAC后6位）
 String decToHex(int Dec);//10进制转16进制
 int hexToDec(String Hex);//16进制转10进制
 struct calculateDay differenceDay(String day_1 , String day_2);//计算两个日期的差值
